@@ -150,6 +150,7 @@
   
   .song:active {
     opacity: 0.8;
+    /* background-color: rgb(214, 214, 214); */
   }
   
   .song.active .option,

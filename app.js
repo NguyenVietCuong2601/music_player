@@ -2,17 +2,19 @@
  * 1. Render songs X
  * 2. Scroll top X
  * 3. Play / pause / seek X
- * 4. CD rotate
- * 5. Next / prev
- * 6. Randoms
- * 7. Next / Repeat when ended
- * 8. Active song
- * 9. Scroll active song into view
- * 10. Play song when click
+ * 4. CD rotate X
+ * 5. Next / prev X
+ * 6. Randoms X
+ * 7. Next / Repeat when ended X
+ * 8. Active song X
+ * 9. Scroll active song into view X
+ * 10. Play song when click X
  */
 
 const $ = document.querySelector.bind(document);
 const $$  = document.querySelectorAll.bind(document);
+
+const PLAYER_STORAGE_KEY = 'F8_PLAYER'
 
 const player = $('.player')
 const cd = $('.cd');
@@ -23,10 +25,16 @@ const playBtn = $('.btn-toggle-play');
 const progress = $('#progress');
 const nextBtn = $('.btn-next');
 const prevBtn = $('.btn-prev');
+const randomBtn = $('.btn-random');
+const repeatBtn = $('.btn-repeat');
+const playlist = $('.playlist');
 
 const app = {
     currentIndex: 0,
     isPlaying: false,
+    isRandom: false,
+    isRepeat: false,
+    config: JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY)) || {},
     songs: [
         {
             name: 'Muộn Rồi Mà Sao Còn',
@@ -77,10 +85,14 @@ const app = {
             image: './assets/img/song8.jpg',
         }
     ],
+    setConfig: function(key, value) {
+        this.config[key] = value;
+        localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify(this.config))
+    },
     render: function() {
-        const htmls = this.songs.map(song => {
+        const htmls = this.songs.map((song, index) => {
             return `
-                <div class="song">
+                <div class="song ${index === this.currentIndex ? 'active' : ''}" data-index="${index}">
                     <div class="thumb" style="background-image: url('${song.image}')">
                     </div>
                     <div class="body">
@@ -93,7 +105,7 @@ const app = {
                 </div>
             `
         })
-        $('.playlist').innerHTML = htmls.join('');
+       playlist.innerHTML = htmls.join('');
     },
     defineProperties() {
         Object.defineProperty(this, 'currentSong', {
@@ -163,20 +175,96 @@ const app = {
 
         // Khi next bai hat 
         nextBtn.onclick = function() {
-            _this.nextSong();
+            if (_this.isRandom) {
+                _this.playRandomSong();
+            } else {
+                _this.nextSong();
+            }
             audio.play();
+            _this.render();
+            _this.scrollToActiveSong();
         }
 
         // Khi prev song
         prevBtn.onclick = function() {
-            _this.prevSong();
+            if (_this.isRandom) {
+                _this.playRandomSong();
+            } else {
+                _this.prevSong();
+            }
             audio.play();
+            _this.render();
+            _this.scrollToActiveSong();
         }
+
+        // Xu ly bat / tat random song
+        randomBtn.onclick = function() {
+            _this.isRandom = !_this.isRandom;
+            _this.setConfig('isRandom', _this.isRandom);
+            randomBtn.classList.toggle('active', _this.isRandom);
+        }
+
+        // Xu ly lap lai 1 song
+        repeatBtn.onclick = function() {
+            _this.isRepeat = !_this.isRepeat;
+            _this.setConfig('isRepeat', _this.isRepeat);
+            repeatBtn.classList.toggle('active', _this.isRepeat);
+        }
+
+        // Xu ly next song khi audio ended
+        audio.onended = function() {
+            if (_this.isRepeat) {
+                audio.play();
+            } else {
+                nextBtn.click();
+            }
+        }
+
+        // Lang nghe hanh vi click vao playlist
+        playlist.onclick = function(e) {
+            const songNode = e.target.closest('.song:not(.active)')
+            if ( songNode || e.target.closest('.option')) {
+                // Xu ly khi click vao song
+                if (songNode && !e.target.closest('.option')) {
+                    _this.currentIndex = Number(songNode.dataset.index);
+                    _this.loadCurrentSong();
+                    _this.render();
+                    audio.play();
+                }
+
+                // XU ly khi click vao song option
+                if ( e.target.closest('.option')) {
+
+                }
+            }
+        }
+    },
+    scrollToActiveSong: function() {
+        if (this.currentIndex < 2) {
+            setTimeout(() => {
+                $('.song.active').scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'end'
+                });
+            }, 300);
+        } else {
+            setTimeout(() => {
+                $('.song.active').scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }, 300);
+        }
+        
     },
     loadCurrentSong: function() {
         heading.textContent = this.currentSong.name;
         cdThumb.style.backgroundImage = `url('${this.currentSong.image}')`;
         audio.src = this.currentSong.path
+    },
+    loadConfig: function() {
+        this.isRandom = this.config.isRandom;
+        this.isRepeat = this.config.isRepeat;
     },
     nextSong: function() {
         this.currentIndex++;
@@ -192,7 +280,18 @@ const app = {
         }
         this.loadCurrentSong();
     },
+    playRandomSong: function() {
+        let newIndex
+        do {
+            newIndex = Math.floor(Math.random() * this.songs.length)
+        } while (newIndex === this.currentIndex)
+        this.currentIndex = newIndex;
+        this.loadCurrentSong();
+    },
     start: function() {
+        // Gan cau hinh tu config vao ung dung
+        this.loadConfig()
+        
         // Dinh nghia cac thuoc tinh cho object
         this.defineProperties();
 
@@ -204,6 +303,13 @@ const app = {
 
         // Render playlist
         this.render()
+
+        // Set den bai hat khi load lai
+        this.scrollToActiveSong();
+
+        // Hien thi trang thai ban dau cua button repeat & random
+        randomBtn.classList.toggle('active', this.isRandom);
+        repeatBtn.classList.toggle('active', this.isRepeat);
     }
 }
 
